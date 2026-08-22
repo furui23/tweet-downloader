@@ -1,0 +1,13 @@
+{
+  "name": "twitter-media-downloader",
+  "version": "1.0.0",
+  "description": "Modern X/Twitter media downloader with glassmorphism UI",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site, no build needed'",
+    "start": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

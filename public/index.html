@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X/Twitter Media Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    h1, h2, .brand { font-family: 'Space Grotesk', sans-serif; }
+    
+    body {
+      background: #0a0a0f;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient background */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: 
+        radial-gradient(ellipse 80% 50% at 20% 40%, rgba(120, 40, 200, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 80% 20%, rgba(0, 180, 255, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 60% at 50% 80%, rgba(255, 50, 100, 0.1) 0%, transparent 50%);
+      animation: meshShift 20s ease-in-out infinite alternate;
+    }
+
+    @keyframes meshShift {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(30deg); }
+    }
+
+    /* Glass card */
+    .glass {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .glass-hover:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 
+        0 8px 40px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(120, 80, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    /* Input styling */
+    .input-glass {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      transition: all 0.3s ease;
+    }
+    .input-glass:focus {
+      outline: none;
+      border-color: rgba(140, 100, 255, 0.6);
+      box-shadow: 0 0 0 3px rgba(140, 100, 255, 0.15), 0 0 30px rgba(140, 100, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .input-glass::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+    /* Gradient button */
+    .btn-gradient {
+      background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #0ea5e9 100%);
+      background-size: 200% 200%;
+      transition: all 0.4s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-gradient::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #38bdf8 100%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .btn-gradient:hover::before { opacity: 1; }
+    .btn-gradient:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(124, 58, 237, 0.4), 0 0 60px rgba(99, 102, 241, 0.2);
+    }
+    .btn-gradient:active { transform: translateY(0); }
+    .btn-gradient span { position: relative; z-index: 1; }
+
+    /* Media card */
+    .media-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+    .media-card:hover {
+      border-color: rgba(140, 100, 255, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(124, 58, 237, 0.15);
+    }
+
+    /* Download button */
+    .btn-download {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(79, 70, 229, 0.3));
+      border: 1px solid rgba(140, 100, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+    .btn-download:hover {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(79, 70, 229, 0.5));
+      border-color: rgba(140, 100, 255, 0.6);
+      box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Pulse animation for logo */
+    .logo-pulse {
+      animation: pulse 3s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { filter: drop-shadow(0 0 20px rgba(124, 58, 237, 0.5)); }
+      50% { filter: drop-shadow(0 0 40px rgba(124, 58, 237, 0.8)); }
+    }
+
+    /* Result reveal animation */
+    .result-reveal {
+      animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    @keyframes slideUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Skeleton loading */
+    .skeleton {
+      background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    ::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(124, 58, 237, 0.5); }
+
+    /* Float animation */
+    .float { animation: float 6s ease-in-out infinite; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+  </style>
+</head>
+<body class="text-white">
+  <div class="bg-mesh"></div>
+
+  <!-- Floating orbs decoration -->
+  <div class="fixed top-20 left-10 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="fixed bottom-20 right-10 w-96 h-96 bg-blue-600/8 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+  <div class="relative min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="py-6 px-4">
+      <div class="max-w-4xl mx-auto flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center logo-pulse">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+          </div>
+          <span class="brand text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-blue-200 bg-clip-text text-transparent">
+            XGrab
+          </span>
+        </div>
+        <div class="text-xs text-white/30 hidden sm:block">
+          Fast • Free • No Login
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1 px-4 pb-12">
+      <div class="max-w-2xl mx-auto text-center mt-8 mb-12">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs text-white/50 mb-6">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+          Supports Videos, Images & Audio
+        </div>
+        
+        <h1 class="text-4xl sm:text-5xl font-bold mb-4 leading-tight">
+          <span class="bg-gradient-to-r from-white via-violet-100 to-blue-100 bg-clip-text text-transparent">
+            Download X/Twitter
+          </span>
+          <br>
+          <span class="bg-gradient-to-r from-violet-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+            Media Instantly
+          </span>
+        </h1>
+        <p class="text-white/40 text-lg max-w-md mx-auto">
+          Paste any tweet link and grab videos, images, or audio in seconds.
+        </p>
+      </div>
+
+      <!-- Input Section -->
+      <div class="max-w-2xl mx-auto mb-10">
+        <div class="glass rounded-2xl p-2 flex gap-2">
+          <input 
+            type="url" 
+            id="urlInput" 
+            placeholder="https://x.com/user/status/1234567890" 
+            class="input-glass flex-1 px-4 py-3 rounded-xl text-sm"
+            autocomplete="off"
+          >
+          <button 
+            id="fetchBtn" 
+            class="btn-gradient px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2"
+            onclick="fetchMedia()"
+          >
+            <span id="btnText">Download</span>
+            <div id="btnSpinner" class="spinner hidden"></div>
+            <svg id="btnIcon" class="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 0033 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-white/20 text-xs mt-3">
+          Supports x.com, twitter.com & vxtwitter.com links
+        </p>
+      </div>
+
+      <!-- Error Message -->
+      <div id="errorMsg" class="max-w-2xl mx-auto mb-6 hidden">
+        <div class="glass rounded-xl p-4 flex items-start gap-3 text-red-300 text-sm">
+          <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span id="errorText"></span>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="max-w-2xl mx-auto space-y-4"></div>
+
+      <!-- Skeleton Loading -->
+      <div id="skeleton" class="max-w-2xl mx-auto mt-8 hidden space-y-4">
+        <div class="glass rounded-2xl p-4 skeleton h-48"></div>
+        <div class="glass rounded-2xl p-4 skeleton h-32"></div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 px-4 text-center text-white/20 text-xs">
+      <p>Built with ♥ — Not affiliated with X Corp.</p>
+    </footer>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const results = document.getElementById('results');
+    const errorMsg = document.getElementById('errorMsg');
+    const errorText = document.getElementById('errorText');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const btnIcon = document.getElementById('btnIcon');
+    const skeleton = document.getElementById('skeleton');
+
+    // Enter key support
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') fetchMedia();
+    });
+
+    // Auto-detect and clean URL
+    urlInput.addEventListener('input', () => {
+      let val = urlInput.value.trim();
+      // Replace various x.com variants
+      val = val.replace(/(?:v?x|twitter)\.com\/\w+\/status\/(\d+)/, 'https://x.com/$1/status/$2');
+      if (val !== urlInput.value) urlInput.value = val;
+    });
+
+    async function fetchMedia() {
+      const url = urlInput.value.trim();
+      if (!url) {
+        showError('Please enter a valid X/Twitter URL');
+        return;
+      }
+      if (!url.includes('x.com') && !url.includes('twitter.com')) {
+        showError('Please enter a valid X/Twitter URL');
+        return;
+      }
+
+      // Reset state
+      hideError();
+      results.innerHTML = '';
+      skeleton.classList.remove('hidden');
+      setLoading(true);
+
+      try {
+        const resp = await fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
+        const data = await resp.json();
+        skeleton.classList.add('hidden');
+        setLoading(false);
+
+        if (data.error) {
+          showError(data.error || 'Failed to fetch media');
+          return;
+        }
+
+        renderResults(data);
+      } catch (err) {
+        skeleton.classList.add('hidden');
+        setLoading(false);
+        showError('Network error. Please try again.');
+      }
+    }
+
+    function renderResults(data) {
+      const medias = data.medias || data.media || [];
+      const tweetText = data.text || data.title || '';
+      const author = data.author || data.user || '';
+
+      if (medias.length === 0) {
+        showError('No media found in this tweet. It may contain text only.');
+        return;
+      }
+
+      let html = '';
+
+      // Tweet info card
+      if (tweetText || author) {
+        html += `
+          <div class="result-reveal glass rounded-2xl p-5 mb-6" style="animation-delay: 0ms">
+            ${author ? `<p class="text-white/40 text-xs mb-2">👤 ${escapeHtml(author)}</p>` : ''}
+            ${tweetText ? `<p class="text-white/70 text-sm leading-relaxed">${escapeHtml(tweetText).slice(0, 300)}${tweetText.length > 300 ? '...' : ''}</p>` : ''}
+          </div>
+        `;
+      }
+
+      // Media cards
+      medias.forEach((media, i) => {
+        const type = media.type || detectType(media.url || media.video_url || media.thumbnail || '');
+        const url = media.url || media.video_url || media.thumbnail || '';
+        const thumb = media.thumbnail || media.thumb || '';
+        const duration = media.duration || '';
+        
+        const delay = (i + 1) * 100;
+        
+        html += `
+          <div class="result-reveal media-card rounded-2xl overflow-hidden" style="animation-delay: ${delay}ms">
+            <div class="flex flex-col sm:flex-row">
+              ${thumb ? `
+                <div class="sm:w-48 h-32 sm:h-auto flex-shrink-0 relative overflow-hidden">
+                  <img src="${escapeHtml(thumb)}" alt="thumbnail" class="w-full h-full object-cover" loading="lazy"
+                       onerror="this.parentElement.innerHTML='<div class=\'w-full h-full bg-white/5 flex items-center justify-center\'><svg class=\'w-8 h-8 text-white/20\' fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\'/></svg></div>'">
+                  ${duration ? `<span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-xs font-mono">${escapeHtml(duration)}</span>` : ''}
+                </div>
+              ` : `
+                <div class="sm:w-48 h-32 flex-shrink-0 bg-gradient-to-br from-violet-900/30 to-blue-900/30 flex items-center justify-center">
+                  <span class="text-3xl">${type === 'video' ? '🎬' : type === 'audio' ? '🎵' : '🖼️'}</span>
+                </div>
+              `}
+              <div class="flex-1 p-4 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      type === 'video' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' :
+                      type === 'audio' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                      'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }">
+                      ${type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : '🖼️ Image'}
+                    </span>
+                    ${media.resolution ? `<span class="text-white/30 text-xs">${escapeHtml(media.resolution)}</span>` : ''}
+                  </div>
+                </div>
+                <a 
+                  href="${escapeHtml(url)}" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="btn-download inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90 mt-3"
+                  download
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                  </svg>
+                  Download ${type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Image'}
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      results.innerHTML = html;
+    }
+
+    function detectType(str) {
+      if (/\.mp4|video|\.mov/i.test(str)) return 'video';
+      if (/\.mp3|audio|\.m4a/i.test(str)) return 'audio';
+      if (/\.jpg|\.jpeg|\.png|\.gif|\.webp|image/i.test(str)) return 'image';
+      return 'video';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function setLoading(loading) {
+      const btn = document.getElementById('fetchBtn');
+      if (loading) {
+        btn.disabled = true;
+        btn.classList.add('opacity-70');
+        btnText.textContent = 'Fetching...';
+        btnSpinner.classList.remove('hidden');
+        btnIcon.classList.add('hidden');
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-70');
+        btnText.textContent = 'Download';
+        btnSpinner.classList.add('hidden');
+        btnIcon.classList.remove('hidden');
+      }
+    }
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorMsg.classList.remove('hidden');
+    }
+
+    function hideError() {
+      errorMsg.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
