@@ -118,6 +118,22 @@
       box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
     }
 
+    /* Copy link button */
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.2s ease;
+    }
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-copy.copied {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: rgba(34, 197, 94, 0.4);
+      color: #4ade80;
+    }
+
     /* Spinner */
     .spinner {
       width: 20px; height: 20px;
@@ -299,111 +315,89 @@
     });
 
     async function fetchMedia() {
-      const url = urlInput.value.trim();
-      if (!url) {
-        showError('Please enter a valid X/Twitter URL');
-        return;
-      }
-      if (!url.includes('x.com') && !url.includes('twitter.com')) {
-        showError('Please enter a valid X/Twitter URL');
-        return;
-      }
+      const raw = urlInput.value.trim();
+      if (!raw) { showError('Please enter an X/Twitter URL'); return; }
+      if (!isValidTweetUrl(raw)) { showError('Please enter a valid X/Twitter URL (e.g. https://x.com/user/status/12345)'); return; }
 
-      // Reset state
       hideError();
       results.innerHTML = '';
       skeleton.classList.remove('hidden');
       setLoading(true);
 
       try {
-        const resp = await fetch(`/api/fetch?url=${encodeURIComponent(url)}`);
+        const resp = await fetch(`/api/fetch?url=${encodeURIComponent(raw)}`);
         const data = await resp.json();
         skeleton.classList.add('hidden');
         setLoading(false);
 
-        if (data.error) {
-          showError(data.error || 'Failed to fetch media');
-          return;
-        }
+        if (data.error) { showError(data.error || 'Failed to fetch media'); return; }
 
-        renderResults(data);
-      } catch (err) {
+        const tweet = parseTweet(data);
+        if (tweet.items.length === 0) { showError('No media found in this tweet. It may be text-only.'); return; }
+        renderResults(tweet);
+      } catch {
         skeleton.classList.add('hidden');
         setLoading(false);
         showError('Network error. Please try again.');
       }
     }
 
-    function renderResults(data) {
-      const medias = data.medias || data.media || [];
-      const tweetText = data.text || data.title || '';
-      const author = data.author || data.user || '';
-
-      if (medias.length === 0) {
-        showError('No media found in this tweet. It may contain text only.');
-        return;
-      }
-
+    function renderResults(tweet) {
       let html = '';
 
       // Tweet info card
-      if (tweetText || author) {
+      if (tweet.text || tweet.author) {
         html += `
-          <div class="result-reveal glass rounded-2xl p-5 mb-6" style="animation-delay: 0ms">
-            ${author ? `<p class="text-white/40 text-xs mb-2">👤 ${escapeHtml(author)}</p>` : ''}
-            ${tweetText ? `<p class="text-white/70 text-sm leading-relaxed">${escapeHtml(tweetText).slice(0, 300)}${tweetText.length > 300 ? '...' : ''}</p>` : ''}
+          <div class="result-reveal glass rounded-2xl p-5 mb-6" style="animation-delay:0ms">
+            ${tweet.author ? `<p class="text-white/40 text-xs mb-2">👤 ${escapeHtml(tweet.author)}</p>` : ''}
+            ${tweet.text ? `<p class="text-white/70 text-sm leading-relaxed">${escapeHtml(tweet.text).slice(0,300)}${tweet.text.length > 300 ? '…' : ''}</p>` : ''}
           </div>
         `;
       }
 
       // Media cards
-      medias.forEach((media, i) => {
-        const type = media.type || detectType(media.url || media.video_url || media.thumbnail || '');
-        const url = media.url || media.video_url || media.thumbnail || '';
-        const thumb = media.thumbnail || media.thumb || '';
-        const duration = media.duration || '';
-        
+      tweet.items.forEach((item, i) => {
+        const meta = TYPE_META[item.type] || TYPE_META.video;
         const delay = (i + 1) * 100;
-        
+
         html += `
-          <div class="result-reveal media-card rounded-2xl overflow-hidden" style="animation-delay: ${delay}ms">
+          <div class="result-reveal media-card rounded-2xl overflow-hidden" style="animation-delay:${delay}ms">
             <div class="flex flex-col sm:flex-row">
-              ${thumb ? `
-                <div class="sm:w-48 h-32 sm:h-auto flex-shrink-0 relative overflow-hidden">
-                  <img src="${escapeHtml(thumb)}" alt="thumbnail" class="w-full h-full object-cover" loading="lazy"
-                       onerror="this.parentElement.innerHTML='<div class=\'w-full h-full bg-white/5 flex items-center justify-center\'><svg class=\'w-8 h-8 text-white/20\' fill=\'none\' stroke=\'currentColor\' viewBox=\'0 0 24 24\'><path stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\'/></svg></div>'">
-                  ${duration ? `<span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-xs font-mono">${escapeHtml(duration)}</span>` : ''}
-                </div>
-              ` : `
-                <div class="sm:w-48 h-32 flex-shrink-0 bg-gradient-to-br from-violet-900/30 to-blue-900/30 flex items-center justify-center">
-                  <span class="text-3xl">${type === 'video' ? '🎬' : type === 'audio' ? '🎵' : '🖼️'}</span>
-                </div>
-              `}
+              ${item.thumb
+                ? `<div class="sm:w-48 h-32 sm:h-auto flex-shrink-0 relative overflow-hidden">
+                     <img src="${escapeHtml(item.thumb)}" alt="thumb" class="w-full h-full object-cover" loading="lazy"
+                          onerror="this.parentElement.innerHTML='<div class=\\'w-full h-full bg-white/5 flex items-center justify-center\\'><svg class=\\'w-8 h-8 text-white/20\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\'/></svg></div>'">
+                     ${item.duration ? `<span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/60 text-xs font-mono">${escapeHtml(item.duration)}</span>` : ''}
+                   </div>`
+                : `<div class="sm:w-48 h-32 flex-shrink-0 bg-gradient-to-br from-violet-900/30 to-blue-900/30 flex items-center justify-center">
+                     <span class="text-3xl">${meta.emoji}</span>
+                   </div>`
+              }
               <div class="flex-1 p-4 flex flex-col justify-between">
                 <div>
-                  <div class="flex items-center gap-2 mb-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      type === 'video' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' :
-                      type === 'audio' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
-                      'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    }">
-                      ${type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : '🖼️ Image'}
+                  <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${meta.badgeClass}">
+                      ${meta.emoji} ${meta.label}
                     </span>
-                    ${media.resolution ? `<span class="text-white/30 text-xs">${escapeHtml(media.resolution)}</span>` : ''}
+                    ${item.resolution ? `<span class="text-white/30 text-xs">${escapeHtml(item.resolution)}</span>` : ''}
                   </div>
                 </div>
-                <a 
-                  href="${escapeHtml(url)}" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  class="btn-download inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90 mt-3"
-                  download
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                  </svg>
-                  Download ${type === 'video' ? 'Video' : type === 'audio' ? 'Audio' : 'Image'}
-                </a>
+                <div class="flex gap-2 mt-3">
+                  <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"
+                     class="btn-download flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Open in New Tab
+                  </a>
+                  <button onclick="copyToClipboard(\`${escapeHtml(item.url).replace(/`/g,'\\`')}\`, this)"
+                          class="btn-copy px-3 py-2.5 rounded-xl text-white/60 hover:text-white/90" title="Copy link">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                    </svg>
+                  </button>
+                </div>
+                <p class="text-white/20 text-xs mt-2 truncate" title="${escapeHtml(item.url)}">${escapeHtml(item.url)}</p>
               </div>
             </div>
           </div>
@@ -413,18 +407,76 @@
       results.innerHTML = html;
     }
 
+    // ─── Type lookup maps ───────────────────────────────────────────────────
+    const TYPE_META = {
+      video:  { emoji: '🎬', label: 'Video',  badgeClass: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
+      audio:  { emoji: '🎵', label: 'Audio',  badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+      image:  { emoji: '🖼️', label: 'Image',  badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+    };
+
+    // ─── Helper: resolve media URL from any shape ────────────────────────────
+    function resolveUrl(m) {
+      return m.url || m.video_url || m.thumbnail || '';
+    }
+
+    // ─── Helper: detect media type from URL string ───────────────────────────
     function detectType(str) {
-      if (/\.mp4|video|\.mov/i.test(str)) return 'video';
-      if (/\.mp3|audio|\.m4a/i.test(str)) return 'audio';
-      if (/\.jpg|\.jpeg|\.png|\.gif|\.webp|image/i.test(str)) return 'image';
+      if (!str) return 'video';
+      if (/\.mp4|video\/|\.mov/i.test(str)) return 'video';
+      if (/\.mp3|audio\/|\.m4a/i.test(str)) return 'audio';
+      if (/\.jpe?g|\.png|\.gif|\.webp|image\//i.test(str)) return 'image';
       return 'video';
     }
 
+    // ─── Helper: parse raw API response into a clean shape ───────────────────
+    function parseTweet(data) {
+      const rawMedias = data.medias || data.media || [];
+      return {
+        author:  data.author  || data.user  || '',
+        text:    data.text    || data.title || '',
+        items: rawMedias.map(m => ({
+          type:       m.type || detectType(resolveUrl(m)),
+          url:        resolveUrl(m),
+          thumb:      m.thumbnail || m.thumb || '',
+          duration:   m.duration || '',
+          resolution: m.resolution || '',
+        })),
+      };
+    }
+
+    // ─── HTML escape ─────────────────────────────────────────────────────────
     function escapeHtml(str) {
       if (!str) return '';
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    // ─── URL validation (strict pattern) ─────────────────────────────────────
+    const TWEET_URL_RE = /^https?:\/\/(?:[vw]?x|twitter)\.com\/\w+\/status\/\d+/i;
+
+    function isValidTweetUrl(url) {
+      return TWEET_URL_RE.test(url);
+    }
+
+    // ─── Copy to clipboard ───────────────────────────────────────────────────
+    async function copyToClipboard(text, btnEl) {
+      try {
+        await navigator.clipboard.writeText(text);
+        const original = btnEl.innerHTML;
+        btnEl.classList.add('copied');
+        btnEl.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied`;
+        setTimeout(() => { btnEl.classList.remove('copied'); btnEl.innerHTML = original; }, 1500);
+      } catch {
+        // Fallback: select the text
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
     }
 
     function setLoading(loading) {

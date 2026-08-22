@@ -73,9 +73,10 @@ twitter-downloader/
 
 ## Notes
 
-- This project uses a public third-party API for extracting tweet media. If the API changes or becomes unavailable, the `netlify/functions/fetch.js` may need updating.
-- Twitter/X rate limits and ToS apply — use responsibly.
-- For production use, consider using the official Twitter API or a more robust backend service.
+- **Backend dependency:** This project uses a public third-party API (`api.twitterfix.com`) for extracting tweet media. If the API changes or becomes unavailable, update `netlify/functions/fetch.js`.
+- **No direct download:** Browsers block `download` attribute on cross-origin URLs for security reasons. The UI opens media in a new tab and provides a **Copy Link** button so users can paste and save manually.
+- **Rate limiting:** No rate limiting is implemented on the serverless function. For production use, add a throttle layer (e.g., Netlify's built-in rate limiting or a caching layer).
+- **Usage:** Use responsibly and respect X/Twitter's Terms of Service.
 
 ## License
 

@@ -1,3 +1,5 @@
+# Netlify config for XGrab — Twitter Media Downloader
+# /api/* rewrites route to serverless functions (not HTTP redirects)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
