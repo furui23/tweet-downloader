@@ -306,18 +306,17 @@
       if (e.key === 'Enter') fetchMedia();
     });
 
-    // Auto-detect and clean URL
-    urlInput.addEventListener('input', () => {
-      let val = urlInput.value.trim();
-      // Replace various x.com variants
-      val = val.replace(/(?:v?x|twitter)\.com\/\w+\/status\/(\d+)/, 'https://x.com/$1/status/$2');
-      if (val !== urlInput.value) urlInput.value = val;
+    // Enter key support
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') fetchMedia();
     });
 
     async function fetchMedia() {
       const raw = urlInput.value.trim();
       if (!raw) { showError('Please enter an X/Twitter URL'); return; }
-      if (!isValidTweetUrl(raw)) { showError('Please enter a valid X/Twitter URL (e.g. https://x.com/user/status/12345)'); return; }
+
+      const tweetId = extractTweetId(raw);
+      if (!tweetId) { showError('Could not find a valid tweet ID in that URL'); return; }
 
       hideError();
       results.innerHTML = '';
@@ -325,7 +324,7 @@
       setLoading(true);
 
       try {
-        const resp = await fetch(`/api/fetch?url=${encodeURIComponent(raw)}`);
+        const resp = await fetch(`/.netlify/functions/fetch?id=${encodeURIComponent(tweetId)}`);
         const data = await resp.json();
         skeleton.classList.add('hidden');
         setLoading(false);
@@ -428,18 +427,19 @@
       return 'video';
     }
 
-    // ─── Helper: parse raw API response into a clean shape ───────────────────
+    // ─── Helper: parse raw FxTwitter API response into a clean shape ──────────
     function parseTweet(data) {
-      const rawMedias = data.medias || data.media || [];
+      const t = data.tweet || data;
+      const rawMedias = t.media?.all || t.media?.photos || [];
       return {
-        author:  data.author  || data.user  || '',
-        text:    data.text    || data.title || '',
+        author:  t.author?.name ? `@${t.author.screen_name || ''} (${t.author.name})` : (t.author?.screen_name ? `@${t.author.screen_name}` : ''),
+        text:    t.text || '',
         items: rawMedias.map(m => ({
-          type:       m.type || detectType(resolveUrl(m)),
-          url:        resolveUrl(m),
-          thumb:      m.thumbnail || m.thumb || '',
-          duration:   m.duration || '',
-          resolution: m.resolution || '',
+          type:       m.type === 'photo' ? 'image' : m.type || detectType(m.url || ''),
+          url:        m.url || '',
+          thumb:      m.thumbnail_url || m.thumbnail || '',
+          duration:   m.duration ? `${m.duration}s` : '',
+          resolution: (m.width && m.height) ? `${m.width}x${m.height}` : '',
         })),
       };
     }
@@ -453,10 +453,11 @@
     }
 
     // ─── URL validation (strict pattern) ─────────────────────────────────────
-    const TWEET_URL_RE = /^https?:\/\/(?:[vw]?x|twitter)\.com\/\w+\/status\/\d+/i;
+    const TWEET_URL_RE = /(?:[vw]?x|twitter)\.com\/\w+\/status\/(\d+)/i;
 
-    function isValidTweetUrl(url) {
-      return TWEET_URL_RE.test(url);
+    function extractTweetId(url) {
+      const m = url.match(TWEET_URL_RE);
+      return m ? m[1] : null;
     }
 
     // ─── Copy to clipboard ───────────────────────────────────────────────────

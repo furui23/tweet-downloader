@@ -1,48 +1,40 @@
-const https = require('https');
+// Fetch tweet data from FxTwitter API (free, no auth required)
+// API docs: https://github.com/FixTweet/FxTwitter
+// Endpoint: https://api.fxtwitter.com/status/:id
 
-const TWITTER_API = 'https://api.twitterfix.com/api/v1/tweet';
 const JSON_CORS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
 };
 
-function fetchJSON(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          reject(new Error('Failed to parse JSON'));
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
 exports.handler = async (event) => {
-  const { queryParameters } = event;
-  const url = queryParameters?.url;
+  const id = event.queryStringParameters?.id;
 
-  if (!url) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'URL parameter is required' }) };
+  if (!id || !/^\d+$/.test(id)) {
+    return { statusCode: 400, headers: JSON_CORS, body: JSON.stringify({ error: 'Valid tweet ID required' }) };
   }
 
   try {
-    const response = await fetchJSON(`${TWITTER_API}?url=${encodeURIComponent(url)}`);
-    return { statusCode: 200, headers: JSON_CORS, body: JSON.stringify(response) };
+    const res = await fetch(`https://api.fxtwitter.com/status/${id}`, {
+      headers: { 'User-Agent': 'XGrab/1.0 (media downloader)' },
+    });
+
+    const data = await res.json();
+
+    if (data.code !== 200 || !data.tweet) {
+      return {
+        statusCode: 404,
+        headers: JSON_CORS,
+        body: JSON.stringify({ error: data.message || 'Tweet not found or unavailable' }),
+      };
+    }
+
+    return { statusCode: 200, headers: JSON_CORS, body: JSON.stringify(data) };
   } catch (error) {
     return {
       statusCode: 502,
       headers: JSON_CORS,
-      body: JSON.stringify({ error: 'Failed to fetch tweet data', details: error.message }),
+      body: JSON.stringify({ error: 'Failed to fetch tweet', details: error.message }),
     };
   }
 };
