@@ -462,7 +462,6 @@
                     </svg>
                     Download
                   </button>
-                  ${item.type === 'video' ? `
                   <button onclick="extractAudio('${escapeHtml(item.url)}', 'audio_${Date.now()}.mp3')"
                           class="btn-audio inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -470,7 +469,6 @@
                     </svg>
                     Extract Audio
                   </button>
-                  ` : ''}
                   <button onclick="copyToClipboard(\`${escapeHtml(item.url).replace(/`/g,'\\`')}\`, this)"
                           class="btn-copy px-3 py-2.5 rounded-xl text-white/60 hover:text-white/90" title="Copy link">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -610,6 +608,12 @@
         audioTooltip.classList.remove('hidden');
         tooltipShown = true;
         setTimeout(() => audioTooltip.classList.add('hidden'), 5000);
+      }
+      
+      // Check if URL is actually a video
+      if (!/\.(mp4|mov|avi|mkv|webm)/i.test(url) && !url.includes('video')) {
+        showError('This media appears to be an image, not a video. Audio extraction is only for videos.');
+        return;
       }
       
       try {
