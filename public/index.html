@@ -6,7 +6,6 @@
   <title>X/Twitter Media Downloader</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <style>
@@ -354,16 +353,8 @@
     // Pre-load FFmpeg on page load for faster audio extraction
     (async () => {
       try {
-        const { createFFmpeg } = FFmpeg;
-        window._ffmpeg = createFFmpeg({ 
-          log: false,
-          progress: ({ ratio }) => {
-            // Update any active conversion buttons
-            document.querySelectorAll('.btn-audio').forEach(btn => {
-              if (!btn.disabled) btn.textContent = `Loading... ${Math.round(ratio * 100)}%`;
-            });
-          }
-        });
+        const { FFmpeg } = FFmpegWASM;
+        window._ffmpeg = new FFmpeg();
         await window._ffmpeg.load();
         console.log('FFmpeg loaded successfully');
       } catch (e) {
@@ -462,7 +453,7 @@
                     </svg>
                     Download
                   </button>
-                  <button onclick="extractAudio('${escapeHtml(item.url)}', 'audio_${Date.now()}.mp3')"
+                  <button onclick="extractAudio('${escapeHtml(item.url)}', 'audio_${Date.now()}.mp3', this)"
                           class="btn-audio inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 10l3-3m0 0l3 3m-3-3v12"/>
@@ -601,11 +592,7 @@
 
     // ─── Extract audio from video ─────────────────────────────────────────────
     async function extractAudio(url, filename, btn) {
-      if (btn) {
-        var btnEl = btn.closest ? btn.closest('.btn-audio') : btn;
-      } else {
-        var btnEl = event?.target?.closest('.btn-audio') || event?.target;
-      }
+      var btnEl = btn || event?.target?.closest('.btn-audio') || event?.target;
       
       // Show tooltip on first use
       if (!tooltipShown) {
@@ -627,13 +614,14 @@
         setLoadingBtn(btnEl, true);
         if (btnEl) btnEl.textContent = 'Loading...';
         
-        // Use ffmpeg.wasm for client-side conversion
-        const { fetchFile } = FFmpegUtil;
-        
         // Check if FFmpeg is loaded
         if (!window._ffmpeg) {
-          const { createFFmpeg } = FFmpeg;
-          window._ffmpeg = createFFmpeg({ log: false });
+          const { FFmpeg } = FFmpegWASM;
+          window._ffmpeg = new FFmpeg();
+          window._ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
+          window._ffmpeg.on('progress', ({ progress }) => {
+            if (btnEl) btnEl.textContent = `Converting... ${Math.round(progress * 100)}%`;
+          });
           await window._ffmpeg.load();
         }
         
@@ -641,19 +629,21 @@
         
         // Fetch video
         if (btnEl) btnEl.textContent = 'Fetching...';
-        const videoData = await fetchFile(url);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to fetch video');
+        const videoData = new Uint8Array(await resp.arrayBuffer());
         
         // Convert to MP3
         if (btnEl) btnEl.textContent = 'Converting...';
-        ffmpeg.FS('writeFile', 'input.mp4', videoData);
-        await ffmpeg.run('-i', 'input.mp4', '-vn', '-acodec', 'libmp3lame', '-q:a', '2', 'output.mp3');
+        await ffmpeg.writeFile('input.mp4', videoData);
+        await ffmpeg.exec(['-i', 'input.mp4', '-vn', '-acodec', 'libmp3lame', '-q:a', '2', 'output.mp3']);
         
         // Get the result
-        const audioData = ffmpeg.FS('readFile', 'output.mp3');
+        const audioData = await ffmpeg.readFile('output.mp3');
         
         // Cleanup
-        ffmpeg.FS('unlink', 'input.mp4');
-        ffmpeg.FS('unlink', 'output.mp3');
+        ffmpeg.deleteFile('input.mp4');
+        ffmpeg.deleteFile('output.mp3');
         
         // Create blob and download
         const blob = new Blob([audioData.buffer], { type: 'audio/mpeg' });
