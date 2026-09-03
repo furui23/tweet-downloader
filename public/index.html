@@ -600,8 +600,12 @@
     }
 
     // ─── Extract audio from video ─────────────────────────────────────────────
-    async function extractAudio(url, filename) {
-      const btn = event?.target?.closest('.btn-audio') || event?.target;
+    async function extractAudio(url, filename, btn) {
+      if (btn) {
+        var btnEl = btn.closest ? btn.closest('.btn-audio') : btn;
+      } else {
+        var btnEl = event?.target?.closest('.btn-audio') || event?.target;
+      }
       
       // Show tooltip on first use
       if (!tooltipShown) {
@@ -611,14 +615,17 @@
       }
       
       // Check if URL is actually a video
-      if (!/\.(mp4|mov|avi|mkv|webm)/i.test(url) && !url.includes('video')) {
-        showError('This media appears to be an image, not a video. Audio extraction is only for videos.');
+      if (!/\.(mp4|mov|avi|mkv|webm|m3u8)/i.test(url) && !url.includes('video')) {
+        if (btnEl) {
+          btnEl.textContent = 'Not a video';
+          setTimeout(() => { btnEl.textContent = 'Extract Audio'; }, 2000);
+        }
         return;
       }
       
       try {
-        setLoadingBtn(btn, true);
-        btn.textContent = 'Loading...';
+        setLoadingBtn(btnEl, true);
+        if (btnEl) btnEl.textContent = 'Loading...';
         
         // Use ffmpeg.wasm for client-side conversion
         const { fetchFile } = FFmpegUtil;
@@ -633,11 +640,11 @@
         const ffmpeg = window._ffmpeg;
         
         // Fetch video
-        btn.textContent = 'Fetching video...';
+        if (btnEl) btnEl.textContent = 'Fetching...';
         const videoData = await fetchFile(url);
         
         // Convert to MP3
-        btn.textContent = 'Converting...';
+        if (btnEl) btnEl.textContent = 'Converting...';
         ffmpeg.FS('writeFile', 'input.mp4', videoData);
         await ffmpeg.run('-i', 'input.mp4', '-vn', '-acodec', 'libmp3lame', '-q:a', '2', 'output.mp3');
         
@@ -659,16 +666,16 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
         
-        btn.textContent = 'Download Audio';
+        if (btnEl) btnEl.textContent = 'Extract Audio';
         
       } catch (error) {
         console.error('Audio extraction error:', error);
-        if (btn) {
-          btn.textContent = 'Retry';
-          setTimeout(() => { btn.textContent = 'Extract Audio'; }, 2000);
+        if (btnEl) {
+          btnEl.textContent = 'Retry';
+          setTimeout(() => { btnEl.textContent = 'Extract Audio'; }, 2000);
         }
       } finally {
-        setLoadingBtn(btn, false);
+        setLoadingBtn(btnEl, false);
       }
     }
 
