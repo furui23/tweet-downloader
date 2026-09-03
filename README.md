@@ -7,6 +7,7 @@ A modern, glassmorphism-styled web app for downloading videos, images, and audio
 - 🎬 Download tweets with **videos** (multiple quality options)
 - 🖼️ Extract **images** from tweets
 - 🎵 Save **audio** from tweets
+- 🎵 **Video to Audio** — Convert video tweets to MP3 audio files
 - ✨ Modern dark UI with glassmorphism & gradient effects
 - 📱 Fully responsive — works on mobile & desktop
 - 🔒 No tracking, no login required
@@ -15,6 +16,7 @@ A modern, glassmorphism-styled web app for downloading videos, images, and audio
 ## Tech Stack
 
 - **Frontend:** Vanilla HTML/CSS/JS + Tailwind CSS (CDN)
+- **Audio Conversion:** FFmpeg.wasm (runs client-side in browser)
 - **Backend:** Netlify Serverless Functions (Node.js)
 - **Styling:** Custom glassmorphism + animated mesh gradient background
 - **Deployment:** Netlify (free tier)

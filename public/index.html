@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>X/Twitter Media Downloader</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <style>
@@ -117,6 +119,35 @@
       border-color: rgba(140, 100, 255, 0.6);
       box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
     }
+    .btn-download:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Audio extract button */
+    .btn-audio {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(219, 39, 119, 0.3));
+      border: 1px solid rgba(236, 72, 153, 0.3);
+      transition: all 0.3s ease;
+    }
+    .btn-audio:hover {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.5), rgba(219, 39, 119, 0.5));
+      border-color: rgba(236, 72, 153, 0.6);
+      box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
+    }
+    .btn-audio:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Tooltip animation */
+    #audioTooltip {
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
 
     /* Copy link button */
     .btn-copy {
@@ -195,6 +226,24 @@
   <div class="fixed top-20 left-10 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
   <div class="fixed bottom-20 right-10 w-96 h-96 bg-blue-600/8 rounded-full blur-3xl pointer-events-none"></div>
   <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- Audio extraction info tooltip -->
+  <div id="audioTooltip" class="fixed bottom-4 right-4 glass rounded-xl p-4 max-w-xs hidden z-50">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-pink-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <div>
+        <p class="text-white/80 text-sm font-medium mb-1">Audio Extraction</p>
+        <p class="text-white/50 text-xs">Video-to-audio conversion runs locally in your browser using WebAssembly. First conversion may take a few seconds to load.</p>
+      </div>
+      <button onclick="document.getElementById('audioTooltip').classList.add('hidden')" class="text-white/30 hover:text-white/60">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
 
   <div class="relative min-h-screen flex flex-col">
     <!-- Header -->
@@ -300,6 +349,30 @@
     const btnSpinner = document.getElementById('btnSpinner');
     const btnIcon = document.getElementById('btnIcon');
     const skeleton = document.getElementById('skeleton');
+    const audioTooltip = document.getElementById('audioTooltip');
+
+    // Pre-load FFmpeg on page load for faster audio extraction
+    (async () => {
+      try {
+        const { createFFmpeg } = FFmpeg;
+        window._ffmpeg = createFFmpeg({ 
+          log: false,
+          progress: ({ ratio }) => {
+            // Update any active conversion buttons
+            document.querySelectorAll('.btn-audio').forEach(btn => {
+              if (!btn.disabled) btn.textContent = `Loading... ${Math.round(ratio * 100)}%`;
+            });
+          }
+        });
+        await window._ffmpeg.load();
+        console.log('FFmpeg loaded successfully');
+      } catch (e) {
+        console.warn('FFmpeg load failed:', e);
+      }
+    })();
+
+    // Show tooltip on first audio extraction attempt
+    let tooltipShown = false;
 
     // Enter key support
     urlInput.addEventListener('keydown', (e) => {
@@ -381,14 +454,23 @@
                     ${item.resolution ? `<span class="text-white/30 text-xs">${escapeHtml(item.resolution)}</span>` : ''}
                   </div>
                 </div>
-                <div class="flex gap-2 mt-3">
-                  <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"
-                     class="btn-download flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90">
+                <div class="flex gap-2 mt-3 flex-wrap">
+                  <button onclick="downloadMedia('${escapeHtml(item.url)}', '${item.type}', '${escapeHtml(item.url.split('/').pop())}')"
+                          class="btn-download flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90 min-w-[120px]">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
-                    Open in New Tab
-                  </a>
+                    Download
+                  </button>
+                  ${item.type === 'video' ? `
+                  <button onclick="extractAudio('${escapeHtml(item.url)}', 'audio_${Date.now()}.mp3')"
+                          class="btn-audio inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/90">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 10l3-3m0 0l3 3m-3-3v12"/>
+                    </svg>
+                    Extract Audio
+                  </button>
+                  ` : ''}
                   <button onclick="copyToClipboard(\`${escapeHtml(item.url).replace(/`/g,'\\`')}\`, this)"
                           class="btn-copy px-3 py-2.5 rounded-xl text-white/60 hover:text-white/90" title="Copy link">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -477,6 +559,123 @@
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
+      }
+    }
+
+    // ─── Direct download via proxy ───────────────────────────────────────────
+    async function downloadMedia(url, type, filename) {
+      const btn = event?.target?.closest('.btn-download') || event?.target;
+      
+      try {
+        setLoadingBtn(btn, true);
+        
+        // Use the download proxy endpoint
+        const proxyUrl = `/.netlify/functions/download?url=${encodeURIComponent(url)}`;
+        const resp = await fetch(proxyUrl);
+        
+        if (!resp.ok) {
+          throw new Error(`Download failed: ${resp.status}`);
+        }
+        
+        // Get content type from response
+        const contentType = resp.headers.get('content-type') || 
+                           (type === 'video' ? 'video/mp4' : type === 'image' ? 'image/jpeg' : 'audio/mpeg');
+        
+        // Create blob and download
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename || `media.${type === 'video' ? 'mp4' : type === 'image' ? 'jpg' : 'mp3'}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        
+      } catch (error) {
+        console.error('Download error:', error);
+        // Fallback: open in new tab
+        window.open(url, '_blank');
+      } finally {
+        setLoadingBtn(btn, false);
+      }
+    }
+
+    // ─── Extract audio from video ─────────────────────────────────────────────
+    async function extractAudio(url, filename) {
+      const btn = event?.target?.closest('.btn-audio') || event?.target;
+      
+      // Show tooltip on first use
+      if (!tooltipShown) {
+        audioTooltip.classList.remove('hidden');
+        tooltipShown = true;
+        setTimeout(() => audioTooltip.classList.add('hidden'), 5000);
+      }
+      
+      try {
+        setLoadingBtn(btn, true);
+        btn.textContent = 'Loading...';
+        
+        // Use ffmpeg.wasm for client-side conversion
+        const { fetchFile } = FFmpegUtil;
+        
+        // Check if FFmpeg is loaded
+        if (!window._ffmpeg) {
+          const { createFFmpeg } = FFmpeg;
+          window._ffmpeg = createFFmpeg({ log: false });
+          await window._ffmpeg.load();
+        }
+        
+        const ffmpeg = window._ffmpeg;
+        
+        // Fetch video
+        btn.textContent = 'Fetching video...';
+        const videoData = await fetchFile(url);
+        
+        // Convert to MP3
+        btn.textContent = 'Converting...';
+        ffmpeg.FS('writeFile', 'input.mp4', videoData);
+        await ffmpeg.run('-i', 'input.mp4', '-vn', '-acodec', 'libmp3lame', '-q:a', '2', 'output.mp3');
+        
+        // Get the result
+        const audioData = ffmpeg.FS('readFile', 'output.mp3');
+        
+        // Cleanup
+        ffmpeg.FS('unlink', 'input.mp4');
+        ffmpeg.FS('unlink', 'output.mp3');
+        
+        // Create blob and download
+        const blob = new Blob([audioData.buffer], { type: 'audio/mpeg' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename || 'audio.mp3';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        
+        btn.textContent = 'Download Audio';
+        
+      } catch (error) {
+        console.error('Audio extraction error:', error);
+        if (btn) {
+          btn.textContent = 'Retry';
+          setTimeout(() => { btn.textContent = 'Extract Audio'; }, 2000);
+        }
+      } finally {
+        setLoadingBtn(btn, false);
+      }
+    }
+
+    function setLoadingBtn(btn, loading) {
+      if (!btn) return;
+      if (loading) {
+        btn.disabled = true;
+        btn.classList.add('opacity-70');
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-70');
       }
     }
 
